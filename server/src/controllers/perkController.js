@@ -70,7 +70,78 @@ export async function createPerk(req, res, next) {
 // TODO
 // Update an existing perk by ID and validate only the fields that are being updated 
 export async function updatePerk(req, res, next) {
-  
+  /*try{
+     // Make all fields optional for partial update
+    const updateSchema = perkSchema.fork(Object.keys(perkSchema.describe().keys), field => field.optional());
+    const { value, error } = updateSchema.validate(req.body, { stripUnknown: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const doc = await Perk.findByIdAndUpdate(req.params.id, value, { new: true, runValidators: true });
+    if (!doc) return res.status(404).json({ message: 'Perk not found' });
+    res.json({ perk: doc });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Duplicate perk for this merchant' });
+    next(err);
+  }*/
+ /*try {
+    // Build a schema with only the fields present in req.body, all optional, no defaults
+    const updateSchema = Joi.object(
+      Object.fromEntries(
+        Object.entries(perkSchema.describe().keys)
+          .filter(([key]) => key in req.body)
+          .map(([key, desc]) => [key, perkSchema.extract(key).optional()])
+      )
+    );
+    const { value, error } = updateSchema.validate(req.body, { stripUnknown: true, noDefaults: true });
+    if (error) return res.status(400).json({ message: error.message });
+
+    const doc = await Perk.findByIdAndUpdate(req.params.id, value, { new: true, runValidators: true });
+    if (!doc) return res.status(404).json({ message: 'Perk not found' });
+    res.json({ perk: doc });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Duplicate perk for this merchant' });
+    next(err);
+  }*/
+    try {
+    // Get existing perk first
+    const existingPerk = await Perk.findById(req.params.id);
+    if (!existingPerk) return res.status(404).json({ message: 'Perk not found' });
+
+    // Validate only the fields being updated
+    const updateSchema = Joi.object(
+      Object.fromEntries(
+        Object.keys(req.body)
+          .filter(key => !['_id', '__v', 'createdAt', 'updatedAt'].includes(key))
+          .map(key => [key, perkSchema.extract(key).optional()])
+      )
+    );
+
+    const { value, error } = updateSchema.validate(req.body, {
+      stripUnknown: true,
+      noDefaults: true
+    });
+    if (error) return res.status(400).json({ message: error.message });
+    if (Object.keys(value).length === 0) {
+      return res.status(400).json({ message: 'No valid fields to update' });
+    }
+
+    // Use $set operator and set timestamps to false
+    const doc = await Perk.findByIdAndUpdate(
+      req.params.id,
+      { $set: value },
+      { 
+        new: true,
+        runValidators: true,
+        timestamps: false,
+        setDefaultsOnInsert: false
+      }
+    ).select('-updatedAt');
+    res.json({ perk: doc });
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Duplicate perk for this merchant' });
+    next(err);
+  }
+   
 }
 
 
